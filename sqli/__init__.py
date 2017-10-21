@@ -6,6 +6,17 @@ _EXECUTE = "execute"
 _FORMAT = "format"
 
 
+def _cure(node):
+    if isinstance(node, Poison):
+        node = node.expr
+
+    for name, value in ast.iter_fields(node):
+        if isinstance(value, ast.AST):
+            setattr(node, name, _cure(value))
+
+    return node
+
+
 class Poison(ast.AST):
     """
     A simple marker node.
@@ -15,7 +26,8 @@ class Poison(ast.AST):
     _fields = ['expr']
 
     def __init__(self, node):
-        self.expr = node
+        # Unparser is unhappy about custom "AST nodes"
+        self.expr = _cure(node)
 
     def __repr__(self):
         return "<Poison expr={!r}>".format(astunparse.unparse(self.expr))
@@ -23,22 +35,12 @@ class Poison(ast.AST):
 
 class Injector(ast.NodeTransformer):
 
-    def _cure(self, node):
-        if isinstance(node, Poison):
-            node = node.expr
-
-        for name, value in ast.iter_fields(node):
-            if isinstance(value, ast.AST):
-                setattr(node, name, self._cure(value))
-
-        return node
-
     def visit_BinOp(self, node):
         node = super().generic_visit(node)
         if isinstance(node.op, ast.Add):
             args = (node.left, node.right)
             if not all(isinstance(a, ast.Str) for a in args):
-                node = Poison(self._cure(node))
+                node = Poison(node)
 
             else:
                 new_node = ast.Str(s=node.left.s + node.right.s)
