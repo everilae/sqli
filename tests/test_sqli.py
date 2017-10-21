@@ -1,4 +1,5 @@
 from sqli import check
+from textwrap import dedent
 
 sources = [
     (3, """import sqlite3 as lite
@@ -96,3 +97,13 @@ def test_check():
     for count, source in sources:
         poisoned = check(source)
         assert len(poisoned) == count
+
+
+def test_multiple_additions():
+    source = dedent("""\
+        sql = "SELECT * FROM foo "+\\
+              "WHERE baz = " + baz +\\
+              "  AND bat = " + bat
+        cur.execute(sql)""")
+    poisoned = check(source)
+    assert len(poisoned) == 1
