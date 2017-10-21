@@ -50,13 +50,6 @@ class Injector(ast.NodeTransformer):
         return node
 
 
-class SQLInjectionError(Exception):
-    """ Raised by visit_Call, if poisoned"""
-    def __init__(self, poison):
-        super().__init__("possible SQL injection: {}".format(
-))
-
-
 class SQLChecker(ast.NodeVisitor):
 
     def __init__(self):
