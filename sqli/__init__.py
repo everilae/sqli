@@ -60,7 +60,7 @@ class SQLChecker(ast.NodeVisitor):
     def _resolve(self, node):
         value = node
         if isinstance(node, ast.Name):
-            value = self._ns.get(node.id)
+            value = self._ns.get(node.id, node)
 
         return value
 
