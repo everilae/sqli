@@ -30,7 +30,13 @@ class Poison(ast.AST):
         self.expr = _cure(node)
 
     def __repr__(self):
-        return "<Poison expr={!r}>".format(astunparse.unparse(self.expr))
+        return "<Poison expr={!r}>".format(self.get_source())
+
+    def get_lineno(self):
+        return self.expr.lineno
+
+    def get_source(self):
+        return astunparse.unparse(self.expr)
 
 
 class Injector(ast.NodeTransformer):
@@ -48,8 +54,8 @@ class Injector(ast.NodeTransformer):
                 node = new_node
 
         elif isinstance(node.op, ast.Mod):
-            if isinstance(node.left, ast.Str):
-                node = Poison(node)
+            # Treat all % operations as poisonous
+            node = Poison(node)
 
         return node
 

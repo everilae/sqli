@@ -13,4 +13,4 @@ poisoned = check(source)
 
 print("Possible SQL injections:")
 for p in poisoned:
-    print("line {}: {}".format(p.expr.lineno, astunparse.unparse(p.expr)))
+    print("line {}: {}".format(p.get_lineno(), p.get_source()))
