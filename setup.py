@@ -8,9 +8,10 @@ setup(
     author_email="saarni@gmail.com",
     url="https://github.com/everilae/sqli",
     packages=["sqli"],
-    requires=[
+    install_requires=[
         "astunparse",
         "requests",
+        "beautifulsoup4",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],
