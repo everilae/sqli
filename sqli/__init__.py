@@ -42,7 +42,7 @@ class Poison(ast.AST):
 class Injector(ast.NodeTransformer):
 
     def visit_BinOp(self, node):
-        node = super().generic_visit(node)
+        node = self.generic_visit(node)
         if isinstance(node.op, ast.Add):
             args = (node.left, node.right)
             if not all(isinstance(a, ast.Str) for a in args):
@@ -59,7 +59,7 @@ class Injector(ast.NodeTransformer):
         return node
 
     def visit_Call(self, node):
-        node = super().generic_visit(node)
+        node = self.generic_visit(node)
         if isinstance(node.func, ast.Attribute) and \
                 node.func.attr == _FORMAT:
             node = Poison(node)
@@ -91,8 +91,9 @@ class SQLChecker(ast.NodeVisitor):
         self.generic_visit(node)
         # Look for <cursor like>.execute(...)
         if isinstance(node.func, ast.Attribute) and \
-                node.func.attr == _EXECUTE:
-            sql, *rest = node.args
+                node.func.attr == _EXECUTE and \
+                len(node.args) >= 1:
+            sql = node.args[0]
             resolved_sql = self._resolve(sql)
             if isinstance(resolved_sql, Poison):
                 self.poisoned.append(resolved_sql)
