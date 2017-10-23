@@ -49,9 +49,8 @@ class Injector(ast.NodeTransformer):
                 node = Poison(node)
 
             else:
-                new_node = ast.Str(s=node.left.s + node.right.s)
-                ast.copy_location(new_node, node)
-                node = new_node
+                node = ast.copy_location(
+                    ast.Str(s=node.left.s + node.right.s), node)
 
         elif isinstance(node.op, ast.Mod):
             # Treat all % operations as poisonous
