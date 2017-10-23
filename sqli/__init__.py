@@ -2,7 +2,7 @@ import sys
 import ast
 import astunparse
 
-_EXECUTE = "execute"
+_EXECUTE = {"execute", "read_sql"}
 _FORMAT = "format"
 
 
@@ -91,7 +91,7 @@ class SQLChecker(ast.NodeVisitor):
         self.generic_visit(node)
         # Look for <cursor like>.execute(...)
         if isinstance(node.func, ast.Attribute) and \
-                node.func.attr == _EXECUTE and \
+                node.func.attr in _EXECUTE and \
                 len(node.args) >= 1:
             sql = node.args[0]
             resolved_sql = self._resolve(sql)
