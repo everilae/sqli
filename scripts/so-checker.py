@@ -5,16 +5,24 @@ from sqli import check
 from bs4 import BeautifulSoup
 from textwrap import dedent
 from argparse import ArgumentParser
+from datetime import datetime
 
 _parser = ArgumentParser(description="Find vulnerable Python from SO")
 _parser.add_argument("tags", nargs="*",
                      default=["sql"],
                      help="Search posts tagged with tags")
 
+_SITE = "stackoverflow"
+_FILTER = "!5-dm_.B4KdW3(tKMnD-gYaOdS-mkdxhSIbFHRm"
 
-def fetch_post_soup(link):
-    resp = requests.get(link)
-    return BeautifulSoup(resp.text, "lxml")
+
+def fetch_post_soup(item):
+    body = item["body"]
+
+    if "answers" in item:
+        body += "\n".join(a["body"] for a in item["answers"])
+
+    return BeautifulSoup(body, "lxml")
 
 
 def fetch(tags):
@@ -25,19 +33,21 @@ def fetch(tags):
         order="desc",
         sort="creation",
         tagged=';'.join(["python"] + list(tags)),
-        site="stackoverflow"
+        site=_SITE,
+        filter=_FILTER,
     )
     resp = requests.get(url, params=params)
     items = resp.json()["items"]
     for it in items:
         link = it["link"]
-        soup = fetch_post_soup(link)
-        for code in soup.select(".post-text code"):
+        created = datetime.utcfromtimestamp(it["creation_date"])
+        soup = fetch_post_soup(it)
+        for code in soup.select("code"):
             source = dedent(code.text)
             try:
                 poisoned = check(source)
                 if poisoned:
-                    print(link, ':')
+                    print("{:%Y-%m-%d} {}:".format(created, link))
                     for p in poisoned:
                         print("#{}: {}".format(p.get_lineno(), p.get_source()))
                     break
