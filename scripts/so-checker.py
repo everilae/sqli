@@ -1,17 +1,34 @@
 from __future__ import print_function
 import sys
 import requests
+import calendar
+
 from sqli import check
+
 from bs4 import BeautifulSoup
+
 from textwrap import dedent
 from argparse import ArgumentParser
 from datetime import datetime
 from itertools import chain
 
+
+def date_argument(arg):
+    if arg == "today":
+        return (datetime.utcnow()
+                .replace(hour=0, minute=0, second=0, microsecond=0))
+
+    else:
+        return datetime.strptime(arg, "%Y-%m-%d")
+
 _parser = ArgumentParser(description="Find vulnerable Python from SO")
 _parser.add_argument("tags", nargs="*",
                      default=["sql"],
                      help="Search posts tagged with tags")
+_parser.add_argument("--from-date", type=date_argument,
+                     help="Filter against creation_date")
+_parser.add_argument("--page-size", type=int, default=100,
+                     help="Maximum items per page")
 
 _SITE = "stackoverflow"
 _FILTER = "!5-dm_.B4KdW3(tKMnD-gYaOdS-mkdxhSIbFHRm"
@@ -26,17 +43,21 @@ def fetch_post_soup(item):
     return (BeautifulSoup(body, "lxml") for body in bs)
 
 
-def fetch(tags):
+def fetch(tags, from_date, page_size):
     url = 'https://api.stackexchange.com/2.2/questions'
     params = dict(
         page=1,
-        pagesize=100,
+        pagesize=page_size,
         order="desc",
         sort="creation",
         tagged=';'.join(["python"] + list(tags)),
         site=_SITE,
         filter=_FILTER,
     )
+
+    if from_date:
+        params["fromdate"] = calendar.timegm(from_date.utctimetuple())
+
     resp = requests.get(url, params=params)
     items = resp.json()["items"]
     for it in items:
@@ -62,7 +83,9 @@ def fetch(tags):
 if __name__ == "__main__":
     args = _parser.parse_args()
     try:
-        fetch(args.tags)
+        fetch(tags=args.tags,
+              from_date=args.from_date,
+              page_size=args.page_size)
 
     except KeyboardInterrupt:
         pass
