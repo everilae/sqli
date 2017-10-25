@@ -14,6 +14,9 @@ def _cure(node):
         if isinstance(value, ast.AST):
             setattr(node, name, _cure(value))
 
+        elif isinstance(value, list):
+            setattr(node, name, [_cure(x) for x in value])
+
     return node
 
 
@@ -36,7 +39,12 @@ class Poison(ast.AST):
         return self.expr.lineno
 
     def get_source(self):
-        return astunparse.unparse(self.expr)
+        try:
+            return astunparse.unparse(self.expr)
+
+        except AttributeError:
+            print(ast.dump(self.expr))
+            raise
 
 
 class Injector(ast.NodeTransformer):
