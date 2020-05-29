@@ -40,7 +40,7 @@ class Poison(gast.AST):
 
     def get_source(self):
         try:
-            return astunparse.unparse(self.expr)
+            return astunparse.unparse(gast.gast_to_ast(self.expr))
 
         except AttributeError:
             print(gast.dump(self.expr))
