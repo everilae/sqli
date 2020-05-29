@@ -23,7 +23,7 @@ def _cure(node):
 class Poison(ast.AST):
     """
     A simple marker node.
-    
+
     :param node: Original poisoned node
     """
     _fields = ['expr']
@@ -73,6 +73,10 @@ class Injector(ast.NodeTransformer):
             node = Poison(node)
 
         return node
+
+    def visit_JoinedStr(self, node):
+        node = self.generic_visit(node)
+        return Poison(node)
 
 
 class SQLChecker(ast.NodeVisitor):

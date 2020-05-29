@@ -64,7 +64,7 @@ conn.commit() """),
     (1, """mydata = c.execute("DELETE FROM Zoznam WHERE Name='%s'" % data3)"""),
     (1, """conn = sqlite3.connect('databaza.db')
 c = conn.cursor()
-conn.text_factory = str    
+conn.text_factory = str
 data3 = str(input('Please enter name: '))
 query = "DELETE FROM Zoznam WHERE Name = '%s';" % data3.strip()
 print(query)
@@ -90,6 +90,8 @@ elif count == 2:
 elif count == 3 :
         cursor.execute("SELECT * FROM PacketManager WHERE ? = ? AND ? = ? AND ? = ?", filters[0], parameters[0], filters[1], parameters[1], filters[2], parameters[2])
         all_rows = cursor.fetchall()"""),
+    (1, """stmt = f"SELECT * FROM foo WHERE bar = {bar}"
+c.execute(stmt)"""),
 ]
 
 
