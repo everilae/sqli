@@ -98,7 +98,7 @@ c.execute(stmt)"""),
 def test_check():
     for count, source in sources:
         poisoned = check(source)
-        assert len(poisoned) == count
+        assert len(poisoned) == count, source
 
 
 def test_multiple_additions():
@@ -109,3 +109,12 @@ def test_multiple_additions():
         cur.execute(sql)""")
     poisoned = check(source)
     assert len(poisoned) == 1
+
+
+#def test_py_2():
+#    source = dedent("""\
+#        sql = "SELECT * FROM foo WHERE x = " + x
+#        print sql
+#        cur.execute(sql)""")
+#    poisoned = check(source)
+#    assert len(poisoned) == 1

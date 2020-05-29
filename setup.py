@@ -12,8 +12,9 @@ setup(
     packages=["sqli"],
     install_requires=[
         "astunparse",
-        "requests",
         "beautifulsoup4",
+        "gast",
+        "requests",
     ],
     setup_requires=["pytest-runner"],
     tests_require=["pytest"],

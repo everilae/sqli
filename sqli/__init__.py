@@ -1,6 +1,6 @@
-import sys
-import ast
 import astunparse
+import gast
+import sys
 
 _EXECUTE = {"execute", "read_sql"}
 _FORMAT = "format"
@@ -10,8 +10,8 @@ def _cure(node):
     if isinstance(node, Poison):
         node = node.expr
 
-    for name, value in ast.iter_fields(node):
-        if isinstance(value, ast.AST):
+    for name, value in gast.iter_fields(node):
+        if isinstance(value, gast.AST):
             setattr(node, name, _cure(value))
 
         elif isinstance(value, list):
@@ -20,7 +20,7 @@ def _cure(node):
     return node
 
 
-class Poison(ast.AST):
+class Poison(gast.AST):
     """
     A simple marker node.
 
@@ -43,24 +43,30 @@ class Poison(ast.AST):
             return astunparse.unparse(self.expr)
 
         except AttributeError:
-            print(ast.dump(self.expr))
+            print(gast.dump(self.expr))
             raise
 
 
-class Injector(ast.NodeTransformer):
+def _is_str_const(node):
+    return isinstance(node, gast.Constant) and isinstance(node.value, str)
+
+
+class Injector(gast.NodeTransformer):
 
     def visit_BinOp(self, node):
         node = self.generic_visit(node)
-        if isinstance(node.op, ast.Add):
-            args = (node.left, node.right)
-            if not all(isinstance(a, ast.Str) for a in args):
+        if isinstance(node.op, gast.Add):
+            if not _is_str_const(node.left) or not _is_str_const(node.right):
                 node = Poison(node)
 
             else:
-                node = ast.copy_location(
-                    ast.Str(s=node.left.s + node.right.s), node)
+                node = gast.copy_location(
+                    gast.Constant(
+                        node.left.value + node.right.value,
+                        None),
+                    node)
 
-        elif isinstance(node.op, ast.Mod):
+        elif isinstance(node.op, gast.Mod):
             # Treat all % operations as poisonous
             node = Poison(node)
 
@@ -68,7 +74,7 @@ class Injector(ast.NodeTransformer):
 
     def visit_Call(self, node):
         node = self.generic_visit(node)
-        if isinstance(node.func, ast.Attribute) and \
+        if isinstance(node.func, gast.Attribute) and \
                 node.func.attr == _FORMAT:
             node = Poison(node)
 
@@ -79,7 +85,7 @@ class Injector(ast.NodeTransformer):
         return Poison(node)
 
 
-class SQLChecker(ast.NodeVisitor):
+class SQLChecker(gast.NodeVisitor):
 
     def __init__(self):
         # A flat namespace, no support for proper scopes yet
@@ -88,7 +94,7 @@ class SQLChecker(ast.NodeVisitor):
 
     def _resolve(self, node):
         value = node
-        if isinstance(node, ast.Name):
+        if isinstance(node, gast.Name):
             value = self._ns.get(node.id, node)
 
         return value
@@ -96,13 +102,13 @@ class SQLChecker(ast.NodeVisitor):
     def visit_Assign(self, node):
         self.generic_visit(node)
         if len(node.targets) == 1 and \
-                isinstance(node.targets[0], ast.Name):
+                isinstance(node.targets[0], gast.Name):
             self._ns[node.targets[0].id] = node.value
 
     def visit_Call(self, node):
         self.generic_visit(node)
         # Look for <cursor like>.execute(...)
-        if isinstance(node.func, ast.Attribute) and \
+        if isinstance(node.func, gast.Attribute) and \
                 node.func.attr in _EXECUTE and \
                 len(node.args) >= 1:
             sql = node.args[0]
@@ -114,7 +120,7 @@ class SQLChecker(ast.NodeVisitor):
 def check(source):
     injector = Injector()
     checker = SQLChecker()
-    tree = ast.parse(source)
+    tree = gast.parse(source)
     new_tree = injector.visit(tree)
     checker.visit(new_tree)
     return checker.poisoned
