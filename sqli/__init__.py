@@ -1,14 +1,19 @@
 import astunparse
 import gast
+import logging
 import sys
 
-_EXECUTE = {"execute", "read_sql"}
+from collections import ChainMap
+
+_EXECUTE = {"execute", "read_sql", "read_sql_query"}
 _FORMAT = "format"
+
+_log = logging.getLogger(__name__)
 
 
 def _cure(node):
     if isinstance(node, Poison):
-        node = node.expr
+        node = node.value
 
     for name, value in gast.iter_fields(node):
         if isinstance(value, gast.AST):
@@ -26,24 +31,24 @@ class Poison(gast.AST):
 
     :param node: Original poisoned node
     """
-    _fields = ['expr']
+    _fields = ["value"]
 
     def __init__(self, node):
         # Unparser is unhappy about custom "AST nodes"
-        self.expr = _cure(node)
+        self.value = _cure(node)
 
     def __repr__(self):
-        return "<Poison expr={!r}>".format(self.get_source())
+        return "<Poison value={!r}>".format(self.get_source())
 
     def get_lineno(self):
-        return self.expr.lineno
+        return self.value.lineno
 
     def get_source(self):
         try:
-            return astunparse.unparse(gast.gast_to_ast(self.expr))
+            return astunparse.unparse(gast.gast_to_ast(self.value))
 
         except AttributeError:
-            print(gast.dump(self.expr))
+            _log.debug(gast.dump(self.value))
             raise
 
 
@@ -75,6 +80,8 @@ class Injector(gast.NodeTransformer):
     def visit_Call(self, node):
         node = self.generic_visit(node)
         if isinstance(node.func, gast.Attribute) and \
+                isinstance(node.func.value, gast.Constant) and \
+                isinstance(node.func.value.value, str) and \
                 node.func.attr == _FORMAT:
             node = Poison(node)
 
@@ -89,7 +96,7 @@ class SQLChecker(gast.NodeVisitor):
 
     def __init__(self):
         # A flat namespace, no support for proper scopes yet
-        self._ns = {}
+        self._ns = ChainMap({})
         self.poisoned = []
 
     def _resolve(self, node):
@@ -98,6 +105,12 @@ class SQLChecker(gast.NodeVisitor):
             value = self._ns.get(node.id, node)
 
         return value
+
+    def visit_FunctionDef(self, node):
+        _parent_ns = self._ns
+        self._ns = self._ns.new_child()
+        self.generic_visit(node)
+        self._ns = _parent_ns
 
     def visit_Assign(self, node):
         self.generic_visit(node)

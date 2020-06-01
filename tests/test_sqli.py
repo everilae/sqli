@@ -92,6 +92,10 @@ elif count == 3 :
         all_rows = cursor.fetchall()"""),
     (1, """stmt = f"SELECT * FROM foo WHERE bar = {bar}"
 c.execute(stmt)"""),
+    # Format strings having 0 placeholders are not injectable as is (risky)
+    (0, """stmt = f"SELECT * FROM foo" """),
+    (0, """cur.execute(sql.SQL(intersecta)
+                .format(nome0=sql.Identifier(nomecompleto),nome1=sql.Identifier(tabelagerada),nome2=sql.Identifier(segmentnome)),[nomedosegmento,])"""),
 ]
 
 
