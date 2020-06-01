@@ -96,6 +96,10 @@ c.execute(stmt)"""),
     (0, """stmt = f"SELECT * FROM foo" """),
     (0, """cur.execute(sql.SQL(intersecta)
                 .format(nome0=sql.Identifier(nomecompleto),nome1=sql.Identifier(tabelagerada),nome2=sql.Identifier(segmentnome)),[nomedosegmento,])"""),
+    (1, """foo = "SELECT * FROM foo WHERE bar = {}"
+cur.execute(foo.format(1))"""),
+    (1, """foo = "SELECT * FROM {}"
+cur.execute(foo.format("{}").format("foo"))"""),
 ]
 
 
