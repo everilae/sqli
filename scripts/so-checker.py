@@ -1,6 +1,7 @@
 import sys
 import requests
 import calendar
+import logging
 
 from sqli import check
 
@@ -28,6 +29,7 @@ _parser.add_argument("--from-date", type=date_argument,
                      help="Filter against creation_date")
 _parser.add_argument("--page-size", type=int, default=100,
                      help="Maximum items per page")
+_parser.add_argument("--log", default="info")
 
 _SITE = "stackoverflow"
 _FILTER = "!5-dm_.B4KdW3(tKMnD-gYaOdS-mkdxhSIbFHRm"
@@ -81,6 +83,7 @@ def fetch(tags, from_date, page_size):
 
 if __name__ == "__main__":
     args = _parser.parse_args()
+    logging.basicConfig(level=getattr(logging, args.log.upper()))
     try:
         fetch(tags=args.tags,
               from_date=args.from_date,

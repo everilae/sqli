@@ -58,8 +58,8 @@ class Poison(gast.AST):
         try:
             return astunparse.unparse(gast.gast_to_ast(node))
 
-        except AttributeError:
-            _log.debug(gast.dump(self.value))
+        except Exception as e:
+            _log.debug("unparsing failed: %s\nAST: %s", e, gast.dump(self.value))
             raise
 
 
@@ -156,7 +156,13 @@ class SQLChecker(gast.NodeTransformer):
 
 
 def check(source):
+    try:
+        tree = gast.parse(source)
+
+    except Exception as e:
+        _log.debug("parsing failed: %s\n%s", e, source)
+        raise
+
     checker = SQLChecker()
-    tree = gast.parse(source)
     checker.visit(tree)
     return checker.poisoned
