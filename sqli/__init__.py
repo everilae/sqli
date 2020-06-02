@@ -48,7 +48,7 @@ class Poison(gast.AST):
         self.value = node
 
     def __repr__(self):
-        return "<Poison value={!r}>".format(self.get_source())
+        return "<Poison value={}>".format(gast.dump(self.value))
 
     def get_lineno(self):
         return self.value.lineno
