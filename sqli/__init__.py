@@ -6,7 +6,7 @@ import sys
 from collections import ChainMap
 
 _EXECUTE = {"execute", "read_sql", "read_sql_query"}
-_FORMAT = "format"
+_FORMAT = {"format", "format_map"}
 
 _log = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ def _is_execute_call(node):
 
 def _is_format_call(node):
     return isinstance(node.func, gast.Attribute) and \
-        node.func.attr == _FORMAT
+        node.func.attr in _FORMAT
 
 
 class Poison(gast.AST):

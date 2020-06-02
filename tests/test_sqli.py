@@ -100,6 +100,7 @@ c.execute(stmt)"""),
 cur.execute(foo.format(1))"""),
     (1, """foo = "SELECT * FROM {}"
 cur.execute(foo.format("{}").format("foo"))"""),
+    (1, """cur.execute("SELECT * FROM foo WHERE x = {x}".format_map(bar))"""),
 ]
 
 
