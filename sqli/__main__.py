@@ -1,16 +1,15 @@
-from __future__ import print_function
-import sys
+import argparse
 import astunparse
+import sys
+
 from . import check
 
-if len(sys.argv) >= 2:
-    with open(sys.argv[1]) as f:
-        source = f.read()
+parser = argparse.ArgumentParser()
+parser.add_argument("file", nargs="?", type=argparse.FileType("r"),
+                     default=sys.stdin)
 
-else:
-    source = sys.stdin.read()
-
-poisoned = check(source)
+args = parser.parse_args()
+poisoned = check(args.file.read())
 
 print("Possible SQL injections:")
 for p in poisoned:
