@@ -25,10 +25,20 @@ def _cure(node):
     return node
 
 
-def _is_execute(node):
+def _is_str_const(node):
+    return isinstance(node, gast.Constant) and \
+        isinstance(node.value, str)
+
+
+def _is_execute_call(node):
     return isinstance(node.func, gast.Attribute) and \
         node.func.attr in _EXECUTE and \
         len(node.args) >= 1
+
+
+def _is_format_call(node):
+    return isinstance(node.func, gast.Attribute) and \
+        node.func.attr == _FORMAT
 
 
 class Poison(gast.AST):
@@ -58,34 +68,19 @@ class Poison(gast.AST):
             raise
 
 
-def _clone(dest, src):
-    for name, value in gast.iter_fields(src):
-        setattr(dest, name, value)
+class SQLChecker(gast.NodeTransformer):
 
+    def __init__(self):
+        # A flat namespace, no support for proper scopes yet
+        self._ns = ChainMap({})
+        self.poisoned = []
 
-class FormatCall(gast.Call):
-    """
-    Marker for <expr>.format(...).
-    """
+    def _resolve(self, node):
+        value = node
+        if isinstance(node, gast.Name):
+            value = self._ns.get(node.id, node)
 
-    @classmethod
-    def from_(cls, other):
-        node = cls()
-        _clone(node, other)
-        return node
-
-    def to_call(self):
-        node = gast.Call()
-        _clone(node, self)
-        return node
-
-
-def _is_str_const(node):
-    return isinstance(node, gast.Constant) and \
-        isinstance(node.value, str)
-
-
-class Injector(gast.NodeTransformer):
+        return value
 
     def visit_BinOp(self, node):
         node = self.generic_visit(node)
@@ -106,32 +101,9 @@ class Injector(gast.NodeTransformer):
 
         return node
 
-    def visit_Call(self, node):
-        node = self.generic_visit(node)
-        if isinstance(node.func, gast.Attribute) and \
-                node.func.attr == _FORMAT:
-            node = FormatCall.from_(node)
-
-        return node
-
     def visit_JoinedStr(self, node):
         node = self.generic_visit(node)
         return Poison(node)
-
-
-class SQLChecker(gast.NodeTransformer):
-
-    def __init__(self):
-        # A flat namespace, no support for proper scopes yet
-        self._ns = ChainMap({})
-        self.poisoned = []
-
-    def _resolve(self, node):
-        value = node
-        if isinstance(node, gast.Name):
-            value = self._ns.get(node.id, node)
-
-        return value
 
     def visit_FunctionDef(self, node):
         _parent_ns = self._ns
@@ -148,10 +120,9 @@ class SQLChecker(gast.NodeTransformer):
 
         return node
 
-    def visit_FormatCall(self, node):
-        node = self.generic_visit(node)
-        node = node.to_call()
+    def _handle_format_call(self, node):
         value = self._resolve(node.func.value)
+
         if _is_str_const(value):
             node = Poison(node)
 
@@ -161,22 +132,27 @@ class SQLChecker(gast.NodeTransformer):
 
         return node
 
+    def _handle_execute_call(self, node):
+        sql = node.args[0]
+        resolved_sql = self._resolve(sql)
+        if isinstance(resolved_sql, Poison):
+            self.poisoned.append(resolved_sql)
+
     def visit_Call(self, node):
         node = self.generic_visit(node)
+
         # Look for <cursor like>.execute(...)
-        if _is_execute(node):
-            sql = node.args[0]
-            resolved_sql = self._resolve(sql)
-            if isinstance(resolved_sql, Poison):
-                self.poisoned.append(resolved_sql)
+        if _is_execute_call(node):
+            self._handle_execute_call(node)
+
+        elif _is_format_call(node):
+            node = self._handle_format_call(node)
 
         return node
 
 
 def check(source):
-    injector = Injector()
     checker = SQLChecker()
     tree = gast.parse(source)
-    new_tree = injector.visit(tree)
-    checker.visit(new_tree)
+    checker.visit(tree)
     return checker.poisoned
