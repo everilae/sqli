@@ -5,8 +5,9 @@ import sys
 
 from collections import ChainMap
 
-_EXECUTE = {"execute", "read_sql", "read_sql_query"}
+_EXECUTE = {"execute", "read_sql", "read_sql_query", "raw"}
 _FORMAT = {"format", "format_map"}
+_TEXT = {"text"}
 
 _log = logging.getLogger(__name__)
 
@@ -34,6 +35,12 @@ def _is_execute_call(node):
 def _is_format_call(node):
     return isinstance(node.func, gast.Attribute) and \
         node.func.attr in _FORMAT
+
+
+def _is_sa_text_call(node):
+    return (isinstance(node.func, gast.Name) and
+        node.func.id in _TEXT) or (isinstance(node.func, gast.Attribute) and
+            node.func.attr in _TEXT)
 
 
 class Poison(gast.AST):
@@ -79,18 +86,7 @@ class SQLChecker(gast.NodeTransformer):
 
     def _handle_add(self, node):
         if not _is_str_const(node.left) or not _is_str_const(node.right):
-            if isinstance(node.left, Poison):
-                node.left = node.left.value
-
-            if isinstance(node.right, Poison):
-                node.right = node.right.value
-
             node = Poison(node)
-
-        else:
-            node = gast.copy_location(
-                gast.Constant(node.left.value + node.right.value, None),
-                node)
 
         return node
 
@@ -131,7 +127,6 @@ class SQLChecker(gast.NodeTransformer):
             node = Poison(node)
 
         elif isinstance(value, Poison):
-            node.func.value = node.func.value.value
             node = Poison(node)
 
         return node
@@ -145,8 +140,7 @@ class SQLChecker(gast.NodeTransformer):
     def visit_Call(self, node):
         node = self.generic_visit(node)
 
-        # Look for <cursor like>.execute(...)
-        if _is_execute_call(node):
+        if _is_execute_call(node) or _is_sa_text_call(node):
             self._handle_execute_call(node)
 
         elif _is_format_call(node):

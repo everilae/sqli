@@ -101,6 +101,9 @@ cur.execute(foo.format(1))"""),
     (1, """foo = "SELECT * FROM {}"
 cur.execute(foo.format("{}").format("foo"))"""),
     (1, """cur.execute("SELECT * FROM foo WHERE x = {x}".format_map(bar))"""),
+    (1, """stmt = text("SELECT * FROM foo WHERE x = '" + str(x) + "'")
+engine.execute(stmt)"""),
+    (1, """Person.objects.raw('SELECT last_name, birth_date, first_name, id FROM myapp_person WHERE last_name LIKE \\'%' + search + '%\\'')"""),
 ]
 
 
