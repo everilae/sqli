@@ -5,9 +5,10 @@ import sys
 
 from collections import ChainMap
 
-_EXECUTE = {"execute", "read_sql", "read_sql_query", "raw"}
+_ATTR_CALL = {"execute", "read_sql", "read_sql_query", "raw", "text"}
+_NAME_CALL = {"text"}
 _FORMAT = {"format", "format_map"}
-_TEXT = {"text"}
+_SAFE_FUNCS = {"len", "int"}
 
 _log = logging.getLogger(__name__)
 
@@ -26,10 +27,14 @@ def _is_str_const(node):
         isinstance(node.value, str)
 
 
-def _is_execute_call(node):
+def _is_attr_call(node):
     return isinstance(node.func, gast.Attribute) and \
-        node.func.attr in _EXECUTE and \
+        node.func.attr in _ATTR_CALL and \
         len(node.args) >= 1
+
+
+def _is_name_call(node):
+    return isinstance(node.func, gast.Name) and node.func.id in _NAME_CALL
 
 
 def _is_format_call(node):
@@ -37,10 +42,25 @@ def _is_format_call(node):
         node.func.attr in _FORMAT
 
 
-def _is_sa_text_call(node):
-    return (isinstance(node.func, gast.Name) and
-        node.func.id in _TEXT) or (isinstance(node.func, gast.Attribute) and
-            node.func.attr in _TEXT)
+def _is_safe_format(node):
+    return all(_is_safe_format_arg(a) for a in node.args + node.keywords)
+
+
+class FormatArgumentVisitor(gast.NodeVisitor):
+
+    def generic_visit(self, node):
+        return all(self.visit(child) for child in gast.iter_child_nodes(node))
+
+    def visit_Name(self, node):
+        return False
+
+    def visit_Call(self, node):
+        if isinstance(node.func, gast.Name) and node.func.id in _SAFE_FUNCS:
+            return True
+
+        return self.generic_visit(node)
+
+_is_safe_format_arg = FormatArgumentVisitor().visit
 
 
 class Poison(gast.AST):
@@ -95,15 +115,20 @@ class SQLChecker(gast.NodeTransformer):
         if isinstance(node.op, gast.Add):
             node = self._handle_add(node)
 
-        elif isinstance(node.op, gast.Mod):
-            # Treat all % operations as poisonous
+        elif isinstance(node.op, gast.Mod) and \
+                not _is_safe_format_arg(node.right):
             node = Poison(node)
 
         return node
 
     def visit_JoinedStr(self, node):
         node = self.generic_visit(node)
-        return Poison(node)
+        if any(not _is_str_const(v) and
+               not _is_str_const(self._resolve(v.value))
+               for v in node.values):
+            node = Poison(node)
+
+        return node
 
     def visit_FunctionDef(self, node):
         _parent_ns = self._ns
@@ -120,18 +145,28 @@ class SQLChecker(gast.NodeTransformer):
 
         return node
 
-    def _handle_format_call(self, node):
-        value = self._resolve(node.func.value)
+    def visit_AugAssign(self, node):
+        node = self.generic_visit(node)
+        if isinstance(node.target, gast.Name) and \
+                isinstance(node.op, gast.Add):
+            value = self._resolve(node.target)
+            if not _is_str_const(value) or not _is_str_const(node.value):
+                node = Poison(node)
 
-        if _is_str_const(value):
+        return node
+
+    def _handle_format_call(self, node):
+        func = self._resolve(node.func.value)
+
+        if _is_str_const(func) and not _is_safe_format(node):
             node = Poison(node)
 
-        elif isinstance(value, Poison):
+        elif isinstance(func, Poison):
             node = Poison(node)
 
         return node
 
-    def _handle_execute_call(self, node):
+    def _handle_sql_call(self, node):
         sql = node.args[0]
         resolved_sql = self._resolve(sql)
         if isinstance(resolved_sql, Poison):
@@ -140,8 +175,8 @@ class SQLChecker(gast.NodeTransformer):
     def visit_Call(self, node):
         node = self.generic_visit(node)
 
-        if _is_execute_call(node) or _is_sa_text_call(node):
-            self._handle_execute_call(node)
+        if _is_attr_call(node) or _is_name_call(node):
+            self._handle_sql_call(node)
 
         elif _is_format_call(node):
             node = self._handle_format_call(node)
