@@ -184,6 +184,12 @@ dynamic_placeholders = [
         for data in reader:
             cursor.execute(query, data)
         """),
+    (0, """
+        args = input().split()
+        placeholders = ",".join("?" * len(args))
+        stmt = f"SELECT * FROM foo WHERE x IN ({placeholders})"
+        engine.execute(stmt, args)
+        """),
 ]
 
 

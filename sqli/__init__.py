@@ -124,7 +124,7 @@ class SQLChecker(gast.NodeTransformer):
     def visit_JoinedStr(self, node):
         node = self.generic_visit(node)
         if any(not _is_str_const(v) and
-               not _is_str_const(self._resolve(v.value))
+               not _is_safe_format_arg(self._resolve(v.value))
                for v in node.values):
             node = Poison(node)
 
