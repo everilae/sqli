@@ -161,6 +161,11 @@ engine.execute(stmt)"""),
     (1, """
         cur.execute("SELECT * FROM foo WHERE x = {}".format(y.x()))
         """),
+    (1, """
+        pd.read_sql_query(
+            'SELECT * FROM foo WHERE bar in ({0})'.format(
+                ','.join(f"'{d}'" for d in data)))
+        """),
 ]
 
 dynamic_placeholders = [
@@ -189,6 +194,12 @@ dynamic_placeholders = [
         placeholders = ",".join("?" * len(args))
         stmt = f"SELECT * FROM foo WHERE x IN ({placeholders})"
         engine.execute(stmt, args)
+        """),
+    (0, """
+        pd.read_sql_query('SELECT * FROM foo WHERE bar in ({0})'.format(', '.join(('?' for _ in data))), data, conn)
+        """),
+    (0, """
+        pd.read_sql_query('SELECT * FROM foo WHERE bar in ({0})'.format(', '.join(['?' for _ in data])), data, conn)
         """),
 ]
 

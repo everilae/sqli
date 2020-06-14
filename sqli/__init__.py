@@ -60,6 +60,13 @@ class FormatArgumentVisitor(gast.NodeVisitor):
 
         return self.generic_visit(node)
 
+    def _visit_comp(self, node):
+        return self.generic_visit(node.elt)
+
+    visit_GeneratorExp = _visit_comp
+    visit_ListComp = _visit_comp
+
+
 _is_safe_format_arg = FormatArgumentVisitor().visit
 
 
